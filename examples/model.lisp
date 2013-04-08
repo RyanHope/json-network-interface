@@ -416,9 +416,3 @@
      )
   
   )
-
-(defun test-ji ()
-  (if (install-device (json-interface "localhost" 5555 :sync .1))
-      (let ((start (get-internal-real-time)))
-	(run-full-time 30 :real-time nil)
-	(format nil "~f" (/ (- (get-internal-real-time) start) internal-time-units-per-second)))))
