@@ -33,22 +33,26 @@ class ACTR_Protocol(LineReceiver):
             d.trigger(e="connectionLost", model=None, params=None)
 
     def lineReceived(self, string):
-        model, method, params = json.loads(string)
-        if method == 'set-mp-time':
+        obj = json.loads(string)
+        if obj['method'] == 'set-mp-time':
             if self.factory.clock:
                 self.factory.clock.setTime(float(params[0]))
-        elif method == 'disconnect':
+        elif obj['method'] == 'disconnect':
             self.factory.p.transport.loseConnection()
         else:
-            if method == 'reset':
+            if obj['method'] == 'reset':
                 if self.factory.clock:
                     self.factory.clock.setTime(0.0)
             for d in self.factory.dispatchers:
-                d.trigger(e=method, model=model, params=params)
-        self.sendLine(json.dumps([model, "sync", None]))
+                d.trigger(e=obj['method'],
+                          model=obj['model'],
+                          params=obj['params'])
+        self.sendCommand(obj['model'], "sync")
 
-    def sendCommand(self, model, method, *params):
-        self.sendLine(json.dumps([model, method, params]))
+    def sendCommand(self, model, method, **params):
+        self.sendLine(json.dumps({"model": model, 
+                                  "method": method, 
+                                  "params": params}))
 
 class JNI_Server(Factory):
 
@@ -70,31 +74,31 @@ class JNI_Server(Factory):
     def update_display(self, chunks, clear=False):
         visual_locations = [chunk.get_visual_location() for chunk in chunks]
         visual_objects = [chunk.get_visual_object() for chunk in chunks]
-        self.p.sendCommand(self.model, "update-display", [visual_locations, visual_objects], clear)
+        self.p.sendCommand(self.model, "update-display", chunks=[visual_locations, visual_objects], clear=clear)
         
     def set_cursor_location(self, loc):
-        self.p.sendCommand(self.model, "set-cursor-loc", loc)
+        self.p.sendCommand(self.model, "set-cursor-loc", loc=loc)
 
     def digit_sound(self, digit):
-        self.p.sendCommand(self.model, "new-digit-sound", digit)
+        self.p.sendCommand(self.model, "new-digit-sound", digit=digit)
 
     def tone_sound(self, freq, duration):
-        self.p.sendCommand(self.model, "new-tone-sound", freq, duration)
+        self.p.sendCommand(self.model, "new-tone-sound", frequency=freq, duration=duration)
 
-    def word_sound(self, word):
-        self.p.sendCommand(self.model, "new-word-sound", word)
+    def word_sound(self, words):
+        self.p.sendCommand(self.model, "new-word-sound", words=words)
 
-    def other_sound(self, content, duration, delay, recode):
-        self.p.sendCommand(self.model, "new-other-sound", content, duration, delay, recode)
+    def other_sound(self, content, onset, delay, recode):
+        self.p.sendCommand(self.model, "new-other-sound", content=content, onset=onset, delay=delay, recode=recode)
 
     def trigger_reward(self, reward):
-        self.p.sendCommand(self.model, "trigger-reward", reward)
-
-    def set_visual_center_pint(self, (x, y)):
-        self.p.sendCommand(self.model, "set-visual-center-point", x, y)
+        self.p.sendCommand(self.model, "trigger-reward", reward=reward)
 
     def disconnect(self):
         self.p.sendCommand(self.model, "disconnect")
         
     def setup(self, width, height):
-        self.p.sendCommand(self.model, "setup", width, height)
+        self.p.sendCommand(self.model, "setup", width=width, height=height)
+        
+    def trigger_event(self, event, *args):
+        self.p.sendCommand(self.model, "trigger-event", event=event, args=args)

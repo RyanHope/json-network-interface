@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+
+import sys,os
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../lib/python"))
+
 # For general environment
 from twisted.internet import reactor
 from twisted.internet.task import LoopingCall, Cooperator
@@ -18,7 +22,7 @@ except ImportError:
 
 class Letter(object):
 
-    colors = {'blue':(0, 0, 255), 'red':(255, 0, 0)}
+    colors = {':blue':(0, 0, 255), ':red':(255, 0, 0)}
 
     def __init__(self, letter, quad, start, colors, max_font_size):
         self.letter = letter
@@ -51,7 +55,7 @@ class Environment(object):
     STATE_SEARCH = 3
     STATE_DONE = 4
 
-    colors = {'white':(255, 255, 255), 'black':(0, 0, 0)}
+    colors = {':white':(255, 255, 255), ':black':(0, 0, 0)}
 
     def __init__(self, actr=False):
 
@@ -101,14 +105,14 @@ class Environment(object):
         while not self.screen_rect.contains(self.intro_xs) or self.intro_ts.colliderect(self.intro_xs):
             self.intro_xs.center = (randint(0, self.screen_rect.width), randint(0, self.screen_rect.height))
         self.start = sample([1, 0, 0, 0], 4)
-        colors = sample(["red", "blue"], 2)
+        colors = sample([":red", ":blue"], 2)
         self.letters = sample(string.ascii_uppercase, 4)
         self.objects = [Letter(self.letters[i], i + 1, self.start[i], colors, self.max_font_size) for i in range(0, len(self.letters))]
         self.clockwise = choice([True, False])
         if self.clockwise:
-            self.bgcolorname = 'black'
+            self.bgcolorname = ':black'
         else:
-            self.bgcolorname = 'white'
+            self.bgcolorname = ':white'
         self.bgcolor = self.colors[self.bgcolorname]
         start = self.start.index(True)
         if self.clockwise:
@@ -250,6 +254,7 @@ class Environment(object):
         @d.listen('connectionMade')
         def ACTR6_JNI_Event(self, model, params):
             self.state = self.STATE_WAIT_MODEL
+            self.actr.setup(self.screen_rect.width, self.screen_rect.height)
 
         @d.listen('connectionLost')
         def ACTR6_JNI_Event(self, model, params):
@@ -258,15 +263,15 @@ class Environment(object):
 
         @d.listen('reset')
         def ACTR6_JNI_Event(self, model, params):
-            self.actr_time_lock = params[0]
+            self.actr_time_lock = params['time-lock']
             self.setDefaultClock()
             self.state = self.STATE_WAIT_MODEL
             
         @d.listen('model-run')
         def ACTR6_JNI_Event(self, model, params):
-            if not params[0]:
+            if not params['resume']:
                 self.state = self.STATE_INTRO
-                X = VisualChunk(None, "letterobj", self.intro_xs.centerx, self.intro_xs.centery, color="red")
+                X = VisualChunk(None, "letterobj", self.intro_xs.centerx, self.intro_xs.centery, color=":red")
                 self.actr.update_display([X], clear=True)
                 self.actr_running = True
             if self.actr_time_lock:
@@ -280,13 +285,13 @@ class Environment(object):
 
         @d.listen('keypress')
         def ACTR6_JNI_Event(self, model, params):
-            self.handle_key_press(params[0], chr(params[0]))
+            self.handle_key_press(params['keycode'], chr(params['keycode']))
 
         @d.listen('mousemotion')
         def ACTR6_JNI_Event(self, model, params):
             # Store "ACT-R" cursor in variable since we are 
             # not going to move the real mouse
-            self.fake_cursor = params[0]
+            self.fake_cursor = params['loc']
 
         @d.listen('mouseclick')
         def ACTR6_JNI_Event(self, model, params):
