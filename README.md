@@ -2,7 +2,7 @@
 
 ## From Source
 
-Copy the ```json-network-interface.lisp``` file to ```modules``` subfolder of your ACT-R installation.
+Copy the [json-network-interface.lisp](json-network-interface.lisp) file to ```modules``` subfolder of your ACT-R installation.
 
 #### Common Lisp Dependencies
 
