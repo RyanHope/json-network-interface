@@ -35,50 +35,49 @@
    (cursor-loc :accessor cursor-loc :initform '(0 0))
    (width :accessor width :initform 0)
    (height :accessor height :initform 0)
-   (running :accessor running :initform nil)))
+   (running :accessor running :initform nil)
+   (wait :accessor wait :initform nil)))
 
-(defun jni-install-device (device)
-  (verify-current-mp  
-      (verify-current-model
-          (let ((devin (current-device-interface)))
-            (when (show-focus-p devin)
-              (device-update-attended-loc (device devin) nil)
-              (device-update-gaze-loc (device devin) nil))
-            (setf (device devin) device)))))
+(defun parse->json-chunk (jsown-obj)
+  (let* ((keys (jsown:keywords jsown-obj))
+         (name (if (find "name" (jsown:keywords jsown-obj) :test #'equal) 
+                   (read-from-string (jsown:val jsown-obj "name"))
+                 nil))
+         (typ (read-from-string (jsown:val jsown-obj "isa")))
+         (slots (jsown:val jsown-obj "slots"))
+         (type-expression (if name
+                              `(,name isa ,typ)
+                            `(isa ,typ))))
+    (loop for slot-name in (jsown:keywords slots) do
+          (let* ((slot-value (jsown:val slots slot-name))
+                 (slot-name (read-from-string slot-name)))
+            (cond ((and (stringp slot-value) (equalp (char slot-value 0) #\:))
+                   (setf slot-value (read-from-string (subseq slot-value 1))))
+                  ((and (numberp slot-value) (member slot-name '(screen-x screen-y width height) :test 'equal))
+                   (setf slot-value (round slot-value))))
+            (setq type-expression (append type-expression `(,slot-name ,slot-value)))))
+    type-expression))
 
-(defun json->chunk (lst-of-lsts)
-  "generate one define-chunks call from a list of chunk specs"
-  (let ((expressions nil))
-    (dolist (lst lst-of-lsts)
-      (cond ((eql :obj (first lst))
-             (let ((typ  (read-from-string (cdr (first (rest lst)))))
-                   (slots (rest (rest lst)))) 
-               (let ((type-expression `(isa ,typ)))
-                 (dolist (s slots)
-                   (let ((name-values (subseq s 2)))
-                     (dolist (n-v name-values)
-                       (let* ((n (read-from-string (car n-v)))
-                              (v1 (cdr n-v))
-                              (v (if (stringp v1)
-                                     (if (equalp (char v1 0) #\:)
-                                         (read-from-string (subseq v1 1))
-                                       v1)
-                                   v1)))
-                         (if (and (numberp v) (member n '(screen-x screen-y width height) :test 'equal))
-                             (setf v (round v)))
-                         (setq type-expression (append type-expression `(,n ,v)))))))
-                 (setq expressions (append expressions (list type-expression))))))))
-   ; `(define-chunks ,@expressions)
-    (funcall 'define-chunks-fct expressions)  ;;
-    ))
+(defun json->chunkpairs (loc-chunks obj-chunks)
+  (pairlis (define-chunks-fct (mapcar 'parse->json-chunk loc-chunks)) 
+           (define-chunks-fct (mapcar 'parse->json-chunk obj-chunks))))
 
-(defun json->chunkpairs (lst-of-lsts)
-  "iterate through each list in in list of json objects returns dotted lists of visloc visobj pairs"
-  (let ((expressions nil))
-    (dolist (lst lst-of-lsts)
-      (setq expressions (append expressions (list (json->chunk lst)))))
-    ;expressions
-    (pairlis (first expressions ) (second expressions ))))
+(defun json->chunkpair (loc-chunk obj-chunk)
+  '((define-chunks-fct (parse->json-chunk loc-chunk)) 
+    (define-chunks-fct (parse->json-chunk obj-chunk))))
+
+(defun update-display-chunks (chunks)
+  (loop for chunk in chunks do
+        (let ((name (read-from-string (jsown:val chunk "name")))
+              (slots (jsown:val chunk "slots")))
+          (loop for slot-name in (jsown:keywords slots) do
+                (let* ((slot-value (jsown:val slots slot-name))
+                       (slot-name (read-from-string slot-name)))
+                  (cond ((and (stringp slot-value) (equalp (char slot-value 0) #\:))
+                         (setf slot-value (read-from-string (subseq slot-value 1))))
+                        ((and (numberp slot-value) (member slot-name '(screen-x screen-y width height) :test 'equal))
+                         (setf slot-value (round slot-value))))
+                  (set-chunk-slot-value-fct name slot-name slot-value))))))      
 
 (defmethod read-stream ((instance json-interface-module))
   (handler-case
@@ -100,11 +99,39 @@
                  (setf (width instance) (jsown:val params "width"))
                  (setf (height instance) (jsown:val params "height")))
                 ((string= method "sync")
-                 (bordeaux-threads:condition-notify (sync-cond instance)))
-                ((string= method "update-display")
                  (progn
-                   (setf (display instance) (json->chunkpairs (jsown:val params "chunks")))
-                   (proc-display :clear (jsown:val params "clear"))))
+                   (setf (wait instance) nil)
+                   (bordeaux-threads:condition-notify (sync-cond instance))))
+                ((string= method "update-display")
+                 (print-warning "The use of JNI command 'update-display' is deprecated, use display-new instead.")
+                 (schedule-event-relative 0 (lambda ()
+                                              (progn
+                                                (setf (display instance) (json->chunkpairs (jsown:val params "loc-chunks")
+                                                                                           (jsown:val params "obj-chunks")))
+                                                (proc-display :clear (jsown:val params "clear"))))))
+                ((string= method "display-new")
+                 (schedule-event-relative 0 (lambda ()
+                                              (progn
+                                                (setf (display instance) (json->chunkpairs (jsown:val params "loc-chunks")
+                                                                                           (jsown:val params "obj-chunks")))
+                                                (proc-display :clear t)))))
+                ((string= method "display-add")
+                 (schedule-event-relative 0 (lambda ()
+                                              (progn
+                                                (setf (display instance) (cons (json->chunkpair (jsown:val params "loc-chunk") 
+                                                                                                (jsown:val params "obj-chunk"))
+                                                                               (display instance)))
+                                                (proc-display :clear nil)))))
+                ((string= method "display-remove")
+                 (schedule-event-relative 0 (lambda ()
+                                              (progn
+                                                (setf (display instance) (remove (jsown:val params "loc-chunk-name") (display instance) :key #'car))
+                                                (proc-display :clear nil)))))
+                ((string= method "display-update")
+                 (schedule-event-relative 0 (lambda ()
+                                              (progn
+                                                (update-display-chunks (jsown:val params "chunks"))
+                                                (proc-display :clear (proc-display :clear (jsown:val params "clear")))))))
                 ((string= method "trigger-reward")
                  (trigger-reward (jsown:val params "reward")))
                 ((string= method "set-cursor-loc")
@@ -142,11 +169,13 @@
 
 (defmethod send-command ((instance json-interface-module) method params &key sync)
   (let ((mid (format nil "~a" (current-model))))
-    (send-raw instance (jsown:to-json (jsown:new-js ("model" mid) ("method" method) ("params" params))))
-    (if sync
-        (bordeaux-threads:with-recursive-lock-held 
-            ((sync-lock instance))
-          (bordeaux-threads:condition-wait (sync-cond instance) (sync-lock instance))))))
+    (bordeaux-threads:with-recursive-lock-held 
+        ((sync-lock instance))
+      (progn
+        (setf (wait instance) t)
+        (send-raw instance (jsown:to-json (jsown:new-js ("model" mid) ("method" method) ("params" params))))
+        (if (and sync (wait instance))
+            (bordeaux-threads:condition-wait (sync-cond instance) (sync-lock instance)))))))
 
 (defmethod send-mp-time ((instance json-interface-module))
   (if (jstream instance)
@@ -173,7 +202,7 @@
   (send-command instance "gaze-loc" (jsown:new-js ("loc" loc))
                 :sync (not (numberp (jni-sync instance)))))
 
-(defmethod device-update-attended-loc2 ((instance json-interface-module) loc)
+(defmethod device-update-attended-loc ((instance json-interface-module) loc)
   (when loc (setf loc (list (aref loc 0) (aref loc 1))))
   (send-command instance "attention-loc" (jsown:new-js ("loc" loc))
                 :sync (not (numberp (jni-sync instance)))))
@@ -207,7 +236,7 @@
   (if (and (socket instance) (jstream instance) (thread instance))
       (progn
         (send-command instance "reset" (jsown:new-js ("time-lock" (numberp (jni-sync instance)))) :sync t)
-        (jni-install-device instance))
+        (install-device instance))
     (if (and (current-model) (jni-hostname instance) (jni-port instance))
         (connect instance))))
 
@@ -285,3 +314,6 @@
  :run-start 'run-start-json-netstring-module
  :run-end 'run-end-json-netstring-module
  :update nil)
+(defmethod update-device ((devin device-interface) time)
+  (declare (ignore devin))
+  (declare (ignore time)))
