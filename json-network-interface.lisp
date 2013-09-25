@@ -1,5 +1,5 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Filename    : json-interface.lisp                                          ;;
+;; Filename    : json-network-interface.lisp                                  ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Author      : Ryan M. Hope <rmh3093@gmail.com>
@@ -14,6 +14,11 @@
     (asdf:load-system :usocket)
     (asdf:load-system :bordeaux-threads)
     (asdf:load-system :jsown)))
+
+#+:packaged-actr (in-package :act-r)
+#-:packaged-actr (in-package :cl-user)
+#+(and :clean-actr (not :packaged-actr) :ALLEGRO-IDE) (in-package :cg-user)
+#-(or (not :clean-actr) :packaged-actr :ALLEGRO-IDE) (in-package :cl-user)
 
 (defclass json-interface-module ()
   ((jni-hostname :accessor jni-hostname :initform nil)
@@ -113,9 +118,6 @@
                 ((string= method "new-other-sound")
                  (new-other-sound (jsown:val params "content") (jsown:val params "onset") (jsown:val params "delay") (jsown:val params "recode")))))
            (return-from read-stream "Nothing to read"))))
-    (usocket:connection-aborted-error () (return-from read-stream "Connection aborted"))
-    (usocket:connection-reset-error () (return-from read-stream "Connection reset"))
-    (usocket:bad-file-descriptor-error () (return-from read-stream "Bad file descriptor"))
     (usocket:socket-error () (return-from read-stream "Socket error"))
     (end-of-file () (return-from read-stream "End of file"))))
 
@@ -220,14 +222,9 @@
         (setf (jstream instance) (usocket:socket-stream (socket instance)))
         (setf (thread instance) (bordeaux-threads:make-thread #'(lambda () (read-stream instance))))
         (jni-install-device instance))
-    (usocket:connection-refused-error () 
+    (usocket:socket-error () 
       (progn
-        (print-warning "Connection refused. Is remote environment server running?")
-        (cleanup instance)
-        (return-from connect)))
-    (usocket:timeout-error () 
-      (progn
-        (print-warning "Timeout. Is remote environment server running?")
+        (print-warning "Socket error")
         (cleanup instance)
         (return-from connect)))))
 
@@ -269,16 +266,22 @@
       (:jni-port (jni-port instance))
       (:jni-sync (jni-sync instance)))))
 
-(define-module-fct 'json-interface nil
-                   (list (define-parameter :jni-hostname)
-                         (define-parameter :jni-port)
-                         (define-parameter :jni-sync))
-                   :version "1.0"
-                   :documentation "Module based manager for remote TCP environments using JSON"
-                   :params 'params-json-netstring-module
-                   :creation 'create-json-netstring-module
-                   :reset (list nil nil 'reset-json-netstring-module)
-                   :delete 'delete-json-netstring-module
-                   :run-start 'run-start-json-netstring-module
-                   :run-end 'run-end-json-netstring-module
-                   :update nil)
+(undefine-module jni)
+(define-module-fct 
+ 'json-network-interface 
+ nil
+ (list (define-parameter :jni-hostname
+                         :documentation "The hostname/fqdn of the remote environment")
+       (define-parameter :jni-port
+                         :documentation "The port number of the remote environment")
+       (define-parameter :jni-sync
+                         :documentation "The timing mode of the model. Use nil for asynchronous mode, t for synchronous mode and any positive number for time-locked mode."))
+ :version "1.0"
+ :documentation "Module based manager for remote TCP environments using JSON"
+ :params 'params-json-netstring-module
+ :creation 'create-json-netstring-module
+ :reset (list nil nil 'reset-json-netstring-module)
+ :delete 'delete-json-netstring-module
+ :run-start 'run-start-json-netstring-module
+ :run-end 'run-end-json-netstring-module
+ :update nil)
