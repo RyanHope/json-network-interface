@@ -1,3 +1,11 @@
 *~
 *.pyc
 *.xfasl
+
+*.nav
+
+*.snm
+
+*.toc
+
+*.vrb
