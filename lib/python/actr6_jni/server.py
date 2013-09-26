@@ -74,7 +74,32 @@ class JNI_Server(Factory):
     def update_display(self, chunks, clear=False):
         visual_locations = [chunk.get_visual_location() for chunk in chunks]
         visual_objects = [chunk.get_visual_object() for chunk in chunks]
-        self.p.sendCommand(self.model, "update-display", chunks=[visual_locations, visual_objects], clear=clear)
+        args = {"loc-chunks": visual_locations, 
+                "obj-chunks": visual_objects,
+                "clear": clear}
+        self.p.sendCommand(self.model, "update-display", **args)
+
+    def display_new(self, chunks):
+        visual_locations = [chunk.get_visual_location() for chunk in chunks]
+        visual_objects = [chunk.get_visual_object() for chunk in chunks]
+        args = {"loc-chunks": visual_locations, 
+                "obj-chunks": visual_objects}
+        self.p.sendCommand(self.model, "display-new", **args)
+
+    def display_add(self, chunk):
+        visual_location = chunk.get_visual_location()
+        visual_object = chunk.get_visual_object()
+        args = {"loc-chunk": visual_location, 
+                "obj-chunk": visual_object}
+        self.p.sendCommand(self.model, "display-add", **args)
+        
+    def display_remove(self, chunk):
+		args = {"loc-chunk-name": chunk.name}
+		self.p.sendCommand(self.model, "display-remove", **args)
+		
+    def display_update(self, chunks, clear=False):
+        chunks = [chunk.get_visual_location() for chunk in chunks] + [chunk.get_visual_object() for chunk in chunks]
+        self.p.sendCommand(self.model, "display-update", chunks=chunks, clear=clear)
         
     def set_cursor_location(self, loc):
         self.p.sendCommand(self.model, "set-cursor-loc", loc=loc)

@@ -82,69 +82,70 @@
 (defmethod read-stream ((instance json-interface-module))
   (handler-case
       (loop
-       (let ((line (read-line (jstream instance))))
-         (if line
-             (let* ((o (jsown:parse line))
-                    (model (jsown:val o "model"))
-                    (method (jsown:val o "method"))
-                    (params (jsown:val o "params")))
-               (cond 
-                ((string= method "disconnect")
-                 (return))
-                ((string= method "trigger-event")
-                 (let ((callback (gethash (read-from-string (jsown:val params "event")) (event-hooks instance))))
-                   (if callback
-                       (apply callback (jsown:val params "args")))))
-                ((string= method "setup")
-                 (setf (width instance) (jsown:val params "width"))
-                 (setf (height instance) (jsown:val params "height")))
-                ((string= method "sync")
-                 (progn
-                   (setf (wait instance) nil)
-                   (bordeaux-threads:condition-notify (sync-cond instance))))
-                ((string= method "update-display")
-                 (print-warning "The use of JNI command 'update-display' is deprecated, use display-new instead.")
-                 (schedule-event-relative 0 (lambda ()
-                                              (progn
-                                                (setf (display instance) (json->chunkpairs (jsown:val params "loc-chunks")
-                                                                                           (jsown:val params "obj-chunks")))
-                                                (proc-display :clear (jsown:val params "clear"))))))
-                ((string= method "display-new")
-                 (schedule-event-relative 0 (lambda ()
-                                              (progn
-                                                (setf (display instance) (json->chunkpairs (jsown:val params "loc-chunks")
-                                                                                           (jsown:val params "obj-chunks")))
-                                                (proc-display :clear t)))))
-                ((string= method "display-add")
-                 (schedule-event-relative 0 (lambda ()
-                                              (progn
-                                                (setf (display instance) (cons (json->chunkpair (jsown:val params "loc-chunk") 
-                                                                                                (jsown:val params "obj-chunk"))
-                                                                               (display instance)))
-                                                (proc-display :clear nil)))))
-                ((string= method "display-remove")
-                 (schedule-event-relative 0 (lambda ()
-                                              (progn
-                                                (setf (display instance) (remove (jsown:val params "loc-chunk-name") (display instance) :key #'car))
-                                                (proc-display :clear nil)))))
-                ((string= method "display-update")
-                 (schedule-event-relative 0 (lambda ()
-                                              (progn
-                                                (update-display-chunks (jsown:val params "chunks"))
-                                                (proc-display :clear (proc-display :clear (jsown:val params "clear")))))))
-                ((string= method "trigger-reward")
-                 (trigger-reward (jsown:val params "reward")))
-                ((string= method "set-cursor-loc")
-                 (setf (cursor-loc instance) (jsown:val params "loc")))
-                ((string= method "new-digit-sound")
-                 (new-digit-sound (jsown:val params "digit")))
-                ((string= method "new-tone-sound")
-                 (new-tone-sound (jsown:val params "frequency") (jsown:val params "duration")))
-                ((string= method "new-word-sound")
-                 (new-word-sound (jsown:val params "words")))
-                ((string= method "new-other-sound")
-                 (new-other-sound (jsown:val params "content") (jsown:val params "onset") (jsown:val params "delay") (jsown:val params "recode")))))
-           (return-from read-stream "Nothing to read"))))
+       (if (listen (jstream instance))
+           (let ((line (read-line (jstream instance))))
+             (if line
+                 (let* ((o (jsown:parse line))
+                        (model (jsown:val o "model"))
+                        (method (jsown:val o "method"))
+                        (params (jsown:val o "params")))
+                   (cond 
+                    ((string= method "disconnect")
+                     (return))
+                    ((string= method "trigger-event")
+                     (let ((callback (gethash (read-from-string (jsown:val params "event")) (event-hooks instance))))
+                       (if callback
+                           (apply callback (jsown:val params "args")))))
+                    ((string= method "setup")
+                     (setf (width instance) (jsown:val params "width"))
+                     (setf (height instance) (jsown:val params "height")))
+                    ((string= method "sync")
+                     (progn
+                       (setf (wait instance) nil)
+                       (bordeaux-threads:condition-notify (sync-cond instance))))
+                    ((string= method "update-display")
+                     (print-warning "The use of JNI command 'update-display' is deprecated, use display-new instead.")
+                     (schedule-event-relative 0 (lambda ()
+                                                  (progn
+                                                    (setf (display instance) (json->chunkpairs (jsown:val params "loc-chunks")
+                                                                                               (jsown:val params "obj-chunks")))
+                                                    (proc-display :clear (jsown:val params "clear"))))))
+                    ((string= method "display-new")
+                     (schedule-event-relative 0 (lambda ()
+                                                  (progn
+                                                    (setf (display instance) (json->chunkpairs (jsown:val params "loc-chunks")
+                                                                                               (jsown:val params "obj-chunks")))
+                                                    (proc-display :clear t)))))
+                    ((string= method "display-add")
+                     (schedule-event-relative 0 (lambda ()
+                                                  (progn
+                                                    (setf (display instance) (cons (json->chunkpair (jsown:val params "loc-chunk") 
+                                                                                                    (jsown:val params "obj-chunk"))
+                                                                                   (display instance)))
+                                                    (proc-display :clear nil)))))
+                    ((string= method "display-remove")
+                     (schedule-event-relative 0 (lambda ()
+                                                  (progn
+                                                    (setf (display instance) (remove (jsown:val params "loc-chunk-name") (display instance) :key #'car))
+                                                    (proc-display :clear nil)))))
+                    ((string= method "display-update")
+                     (schedule-event-relative 0 (lambda ()
+                                                  (progn
+                                                    (update-display-chunks (jsown:val params "chunks"))
+                                                    (proc-display :clear (proc-display :clear (jsown:val params "clear")))))))
+                    ((string= method "trigger-reward")
+                     (trigger-reward (jsown:val params "reward")))
+                    ((string= method "set-cursor-loc")
+                     (setf (cursor-loc instance) (jsown:val params "loc")))
+                    ((string= method "new-digit-sound")
+                     (new-digit-sound (jsown:val params "digit")))
+                    ((string= method "new-tone-sound")
+                     (new-tone-sound (jsown:val params "frequency") (jsown:val params "duration")))
+                    ((string= method "new-word-sound")
+                     (new-word-sound (jsown:val params "words")))
+                    ((string= method "new-other-sound")
+                     (new-other-sound (jsown:val params "content") (jsown:val params "onset") (jsown:val params "delay") (jsown:val params "recode")))))
+               (return-from read-stream "Nothing to read")))))
     (usocket:socket-error () (return-from read-stream "Socket error"))
     (end-of-file () (return-from read-stream "End of file"))))
 
@@ -165,7 +166,7 @@
   (write-string string (jstream instance))
   (write-char #\return (jstream instance))
   (write-char #\linefeed (jstream instance))
-  (force-output (jstream instance)))
+  (finish-output (jstream instance)))
 
 (defmethod send-command ((instance json-interface-module) method params &key sync)
   (let ((mid (format nil "~a" (current-model))))
@@ -250,7 +251,7 @@
         (setf (socket instance) (usocket:socket-connect (jni-hostname instance) (jni-port instance)))
         (setf (jstream instance) (usocket:socket-stream (socket instance)))
         (setf (thread instance) (bordeaux-threads:make-thread #'(lambda () (read-stream instance))))
-        (jni-install-device instance))
+        (install-device instance))
     (usocket:socket-error () 
       (progn
         (print-warning "Socket error")
@@ -258,7 +259,7 @@
         (return-from connect)))))
 
 (defun run-start-json-netstring-module (instance)
-  (if (current-model)
+  (if (and (socket instance) (current-model))
       (progn
         (if (numberp (jni-sync instance))
             (setf (sync-event instance)
@@ -267,14 +268,14 @@
         (setf (running instance) t))))
 
 (defun run-end-json-netstring-module (instance)
-  (if (current-model)
+  (if (and (socket instance) (current-model))
       (progn
         (if (sync-event instance)
             (delete-event (sync-event instance)))
         (send-command instance "model-stop" nil))))
 
 (defun jni-register-event-hook (event hook)
-  (setf (gethash event (event-hooks (get-module json-interface))) hook))
+  (setf (gethash event (event-hooks (get-module json-network-interface))) hook))
   
 (defun params-json-netstring-module (instance param)
   (if (consp param)
@@ -314,6 +315,3 @@
  :run-start 'run-start-json-netstring-module
  :run-end 'run-end-json-netstring-module
  :update nil)
-(defmethod update-device ((devin device-interface) time)
-  (declare (ignore devin))
-  (declare (ignore time)))

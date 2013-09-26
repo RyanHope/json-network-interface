@@ -17,10 +17,20 @@
 # along with ACTR6_JNI.  If not, see <http://www.gnu.org/licenses/>.
 #===============================================================================
 
+from itertools import count
+
 class VisualChunk(object):
 
+    _ids = count(0)
+    
     def __init__( self, name, isa, screenx, screeny, width = None, height = None, color = None, size = None, value = None, **slots ):
-        self.name = name
+    	
+    	self._id = self._ids.next()
+    	
+        if name == None:
+        	self.name = "vc%d" % self._id
+        else:
+	        self.name = name
         self.isa = isa
         self.screenx = screenx
         self.screeny = screeny
@@ -32,7 +42,8 @@ class VisualChunk(object):
         self.slots = slots
 
     def get_visual_object( self ):
-        chunk = {"isa": self.isa,
+        chunk = {"name": "%s-obj" % str(self.name),
+        		 "isa": self.isa,
                  "slots": {}}
         if self.width:
             chunk["slots"]["width"] = self.width
@@ -47,7 +58,8 @@ class VisualChunk(object):
         return chunk
 
     def get_visual_location( self ):
-        chunk = {"isa": "visual-location",
+        chunk = {"name": "%s-loc" % str(self.name),
+                 "isa": "visual-location",
                  "slots": {"kind": ":%s" % self.isa,
                            "screen-x": self.screenx,
                            "screen-y": self.screeny,
