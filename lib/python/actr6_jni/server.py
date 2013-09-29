@@ -93,9 +93,12 @@ class JNI_Server(Factory):
                 "obj-chunk": visual_object}
         self.p.sendCommand(self.model, "display-add", **args)
         
-    def display_remove(self, chunk):
-		args = {"loc-chunk-name": chunk.name}
-		self.p.sendCommand(self.model, "display-remove", **args)
+    def display_remove(self, chunk=None, name=None):
+        if chunk:
+            name = chunk.name
+        if name:
+            args = {"loc-chunk-name": chunk.name}
+            self.p.sendCommand(self.model, "display-remove", **args)
 		
     def display_update(self, chunks, clear=False):
         chunks = [chunk.get_visual_location() for chunk in chunks] + [chunk.get_visual_object() for chunk in chunks]
