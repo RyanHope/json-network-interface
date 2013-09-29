@@ -97,7 +97,7 @@ class JNI_Server(Factory):
         if chunk:
             name = chunk.name
         if name:
-            args = {"loc-chunk-name": chunk.name}
+            args = {"loc-chunk-name": name}
             self.p.sendCommand(self.model, "display-remove", **args)
 		
     def display_update(self, chunks, clear=False):
