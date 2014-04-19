@@ -128,7 +128,7 @@
      (progn
        (update-display-chunks (jsown:val params "chunks"))
        (if (not (process-display-called (get-module :vision)))
-           (proc-display :clear (proc-display :clear (jsown:val params "clear"))))))
+           (proc-display :clear (jsown:val params "clear")))))
     ((string= method "add-dm")
      (add-dm-fct (list (parse->json-chunk (jsown:val params "chunk")))))
     ((string= method "trigger-reward")
